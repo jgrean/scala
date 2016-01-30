@@ -38,17 +38,25 @@ trait MemberLookup extends base.MemberLookupBase {
   }
 
   override def findExternalLink(sym: Symbol, name: String): Option[LinkToExternal] = {
+    def urlToLink(url : String) = LinkToExternal(name, url + "#" + name)
+
     val sym1 =
       if (sym == AnyClass || sym == AnyRefClass || sym == AnyValClass || sym == NothingClass) ListClass
       else if (sym.hasPackageFlag)
         /* Get package object which has associatedFile ne null */
         sym.info.member(newTermName("package"))
       else sym
-    Option(sym1.associatedFile) flatMap (_.underlyingSource) flatMap { src =>
-      val path = src.canonicalPath
-      settings.extUrlMapping get path map { url =>
-        LinkToExternal(name, url + "#" + name)
-      }
+    Option(sym1.associatedFile) flatMap (_.underlyingSource) match {
+      case Some(src) =>
+        val path = src.canonicalPath
+        settings.extUrlMapping get path map urlToLink
+      case None =>
+        val path = sym1.associatedFile.canonicalPath
+        settings.extUrlDirectoryMappings find {
+          case(dir, url) => path.startsWith(dir)
+        } map {
+          case(dir, url) => urlToLink(url)
+        }
     }
   }
 
